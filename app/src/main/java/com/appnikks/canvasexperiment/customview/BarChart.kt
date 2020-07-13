@@ -86,16 +86,17 @@ class BarChart : View {
 
         /**
          * GridRight-GridLeft is the total width.
-         * - Total Coloum Spacing
+         * - Total Column Spacing
          * / Data Count Gives Width For Each Bar
          */
         val columnWidth = (gridRight - gridLeft - totalColumnSpacing) / data.size
 
         /**
-         * These are inital Points For First Bar
+         * These are initial Points For First Bar
          */
         var columnLeft = gridLeft + barSpacing
         var columnRight = columnLeft + columnWidth
+        // Drawing Bars
         for (percentage in data) {
 
             // Calculate top of column based on percentage.
