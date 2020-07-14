@@ -79,13 +79,21 @@ class TwoPartScalableBarChart : View {
     var bottomGraphBackgroundDrawable: Drawable? = null
 
     // Value Text Properties
-    var valueDrawPosition: ValueDrawPosition = ValueDrawPosition.TOP
+    var valueDrawPosition: ValueDrawPosition = ValueDrawPosition.INSIDE
     var valueTextPadding = context.dpToPx(4f)
     var valueFormatter = BarValueBaseFormatter()
     private val rectTextMeasurements = Rect()
 
+    // X Axis Labels
+    var drawXAxisLabels = true
+    var xAxisFormatter = XAxisLabelBaseFormatter()
+    var marginXAxisLabels = context.dpToPx(8f)
+        set(value) {
+            field = context.dpToPx(value)
+        }
+
     // Paints
-    private val mBarPaint = Paint().apply {
+    val mBarPaint = Paint().apply {
         style = Paint.Style.FILL
         // Default Color
         color = ContextCompat.getColor(context, R.color.colorPrimary)
@@ -106,7 +114,15 @@ class TwoPartScalableBarChart : View {
     private val mBarValuesTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
         typeface = Typeface.SANS_SERIF
-        textAlign = Paint.Align.LEFT
+        textAlign = Paint.Align.CENTER
+        color = ContextCompat.getColor(context, android.R.color.black)
+        textSize = context.spToPx(DEFAULT_TEXT_SIZE)
+    }
+
+    private val mXAxisTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        typeface = Typeface.SANS_SERIF
+        textAlign = Paint.Align.CENTER
         color = ContextCompat.getColor(context, android.R.color.black)
         textSize = context.spToPx(DEFAULT_TEXT_SIZE)
     }
@@ -140,16 +156,17 @@ class TwoPartScalableBarChart : View {
         } else {
             width - paddingRight.toFloat()
         }
+        val viewBottom = height - paddingBottom.toFloat()
 
-        val gridBottom = height - paddingBottom.toFloat()
-        val gridTop = paddingTop.toFloat()
+        // TODO REVISIT THIS LOGIC
+        val gridBottom = height - paddingBottom.toFloat() - marginXAxisLabels
 
         val upperGraphTop = paddingTop.toFloat()
         val upperGraphBottom =
-            ((height - paddingBottom.toFloat() - upperGraphTop) / 2) - if (drawZeroLine) zeroLineHeightDp / 2 else 0f
+            ((gridBottom - upperGraphTop) / 2) - if (drawZeroLine) zeroLineHeightDp / 2 else 0f
 
         val lowerGraphTop = upperGraphBottom + if (drawZeroLine) zeroLineHeightDp / 2 else 0f
-        val lowerGraphBottom = height - upperGraphTop
+        val lowerGraphBottom = gridBottom - upperGraphTop
 
         // Bars
         /**
@@ -212,9 +229,9 @@ class TwoPartScalableBarChart : View {
         mBarPaint.color = dataSetColors[0]
 
         // Drawing Bars
-        for (barValue in dataSet) {
+        dataSet.forEachIndexed { index, barValue ->
             rectTextMeasurements.setEmpty()
-            val valueString = valueFormatter.getValue(barValue)
+            val valueString = valueFormatter.getValue(barValue, index)
             if (valueDrawPosition == ValueDrawPosition.TOP) {
                 mBarValuesTextPaint.getTextBounds(
                     valueString,
@@ -244,14 +261,14 @@ class TwoPartScalableBarChart : View {
             if (valueDrawPosition == ValueDrawPosition.TOP) {
                 canvas?.drawText(
                     valueString,
-                    (columnLeft + rectTextMeasurements.left),
+                    columnLeft + (columnRight - columnLeft) / 2,
                     if (barValue.value < 0) bottom + rectTextMeasurements.height() / 2 + valueTextPadding else ((top - valueTextPadding)),
                     mBarValuesTextPaint
                 )
             } else if (valueDrawPosition == ValueDrawPosition.INSIDE) {
                 canvas?.drawText(
                     valueString,
-                    (columnLeft + rectTextMeasurements.left),
+                    columnLeft + (columnRight - columnLeft) / 2,
                     bottom - ((bottom - top) / 2),
                     mBarValuesTextPaint
                 )
@@ -276,6 +293,16 @@ class TwoPartScalableBarChart : View {
                     BarLineType.Extended -> columnRight + barLineExtendedWidth
                 }
                 canvas?.drawLine(barXStartPos, barYPos, barXEndPos, barYPos, mBarLinesPaint)
+            }
+
+            if (drawXAxisLabels) {
+                val labelToDraw = xAxisFormatter.getValue(barValue, index)
+                canvas?.drawText(
+                    labelToDraw,
+                    columnLeft + (columnRight - columnLeft) / 2,
+                    viewBottom,
+                    mXAxisTextPaint
+                )
             }
 
             // Shift over left/right column bounds
@@ -325,9 +352,19 @@ class TwoPartScalableBarChart : View {
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, dp, resources.displayMetrics)
     }
 
-    open class BarValueBaseFormatter {
-        open fun getValue(model: ChartUiModel): String {
+    open class BarValueBaseFormatter : ValueFormatter {
+        override fun getValue(model: ChartUiModel, position: Int): String {
             return model.value.toString()
         }
+    }
+
+    open class XAxisLabelBaseFormatter : ValueFormatter {
+        override fun getValue(model: ChartUiModel, position: Int): String {
+            return position.toString()
+        }
+    }
+
+    interface ValueFormatter {
+        fun getValue(model: ChartUiModel, position: Int): String
     }
 }
