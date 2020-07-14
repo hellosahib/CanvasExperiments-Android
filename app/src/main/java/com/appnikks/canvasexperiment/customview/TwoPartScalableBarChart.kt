@@ -9,6 +9,7 @@ import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.View
 import androidx.annotation.Dimension
+import androidx.annotation.FloatRange
 import androidx.annotation.Px
 import androidx.core.content.ContextCompat
 import com.appnikks.canvasexperiment.R
@@ -51,6 +52,12 @@ class TwoPartScalableBarChart : View {
             field = ContextCompat.getColor(context, value)
             mBarLinesPaint.color = field
         }
+
+    // TODO CHANGE TO 0DP
+    var barLineExtendedWidth = context.dpToPx(2f)
+
+    // TODO CHANGE TO NORMAL
+    var barLineType: BarLineType = BarLineType.Contracted
 
     // TODO DEFAULT FALSE
     var drawZeroLine = true
@@ -118,10 +125,20 @@ class TwoPartScalableBarChart : View {
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
 
-        val gridLeft = paddingLeft.toFloat()
+        val gridLeft = if (drawBarLines && barLineType == BarLineType.Extended) {
+            paddingLeft.toFloat() + barLineExtendedWidth
+        } else {
+            paddingLeft.toFloat()
+        }
+
+        val gridRight = if (drawBarLines && barLineType == BarLineType.Extended) {
+            width - paddingRight.toFloat() - barLineExtendedWidth
+        } else {
+            width - paddingRight.toFloat()
+        }
+
         val gridBottom = height - paddingBottom.toFloat()
         val gridTop = paddingTop.toFloat()
-        val gridRight = width - paddingRight.toFloat()
 
         val upperGraphTop = paddingTop.toFloat()
         val upperGraphBottom =
@@ -205,13 +222,24 @@ class TwoPartScalableBarChart : View {
 
             canvas?.drawRect(columnLeft, top, columnRight, bottom, mBarPaint)
 
+            // Drawing Bar Lines
             if (drawBarLines) {
                 val barYPos = if (barValue.barLineValue >= 0) {
                     upperGraphTop + (upperGraphBottom - upperGraphTop) * ((100f - barValue.barLineValue.absoluteValue) / 100f)
                 } else {
                     lowerGraphBottom - (lowerGraphBottom - lowerGraphTop) * ((100f - barValue.barLineValue.absoluteValue) / 100f)
                 }
-                canvas?.drawLine(columnLeft, barYPos, columnRight, barYPos, mBarLinesPaint)
+                val barXStartPos = when (barLineType) {
+                    BarLineType.NORMAL -> columnLeft
+                    BarLineType.Contracted -> columnLeft + barLineExtendedWidth
+                    BarLineType.Extended -> columnLeft - barLineExtendedWidth
+                }
+                val barXEndPos = when (barLineType) {
+                    BarLineType.NORMAL -> columnRight
+                    BarLineType.Contracted -> columnRight - barLineExtendedWidth
+                    BarLineType.Extended -> columnRight + barLineExtendedWidth
+                }
+                canvas?.drawLine(barXStartPos, barYPos, barXEndPos, barYPos, mBarLinesPaint)
             }
 
             // Shift over left/right column bounds
@@ -220,8 +248,9 @@ class TwoPartScalableBarChart : View {
         }
     }
 
-    // Value should be between 0 - 100f
+    // Value should be between -100f to 100f
     data class ChartUiModel(
+        @FloatRange(from = -100.0, to = 100.0)
         val value: Float,
         val barLineValue: Float = -1f,
         val data: Any? = null
@@ -229,6 +258,25 @@ class TwoPartScalableBarChart : View {
 
     enum class ValueDrawPosition {
         TOP, INSIDE, NONE
+    }
+
+    enum class BarLineType {
+        /**
+         * Same The Size Of Bar
+         */
+        NORMAL,
+
+        /**
+         * Bar Will Be More Than Size of Bar
+         * @see barLineExtendedWidth
+         */
+        Extended,
+
+        /**
+         * Bar Will Be Less Than Size of Bar
+         * @see barLineExtendedWidth
+         */
+        Contracted
     }
 
     @Px
