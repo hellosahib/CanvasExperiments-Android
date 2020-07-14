@@ -3,6 +3,7 @@ package com.appnikks.canvasexperiment.customview
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
@@ -30,7 +31,8 @@ class TwoPartScalableBarChart : View {
     var dataSet = listOf(
         ChartUiModel(20f, 20f),
         ChartUiModel(-30f, -10f),
-        ChartUiModel(10f, 0f)
+        ChartUiModel(10f, 0f),
+        ChartUiModel(50f, 20f)
     )
         set(value) {
             field = value
@@ -78,8 +80,9 @@ class TwoPartScalableBarChart : View {
 
     // Value Text Properties
     var valueDrawPosition: ValueDrawPosition = ValueDrawPosition.TOP
-    var valueTextPadding = context.dpToPx(0f)
+    var valueTextPadding = context.dpToPx(4f)
     var valueFormatter = BarValueBaseFormatter()
+    private val rectTextMeasurements = Rect()
 
     // Paints
     private val mBarPaint = Paint().apply {
@@ -100,9 +103,10 @@ class TwoPartScalableBarChart : View {
         strokeWidth = drawBarLineHeightDp
     }
 
-    private val mBarValuesTextPaint = Paint().apply {
-        textAlign = Paint.Align.CENTER
+    private val mBarValuesTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
         typeface = Typeface.SANS_SERIF
+        textAlign = Paint.Align.LEFT
         color = ContextCompat.getColor(context, android.R.color.black)
         textSize = context.spToPx(DEFAULT_TEXT_SIZE)
     }
@@ -201,14 +205,29 @@ class TwoPartScalableBarChart : View {
             )
         }
 
+        if (valueDrawPosition != ValueDrawPosition.TOP) {
+            valueTextPadding = 0f
+        }
+
         mBarPaint.color = dataSetColors[0]
+
         // Drawing Bars
         for (barValue in dataSet) {
-            // Calculate top of column based on barValue.
+            rectTextMeasurements.setEmpty()
+            val valueString = valueFormatter.getValue(barValue)
+            if (valueDrawPosition == ValueDrawPosition.TOP) {
+                mBarValuesTextPaint.getTextBounds(
+                    valueString,
+                    0,
+                    valueString.length,
+                    rectTextMeasurements
+                )
+            }
 
+            // Calculate top of column based on barValue.
             val top = if (barValue.value > 0) {
                 // Draw in Upper Region
-                upperGraphTop + (upperGraphBottom - upperGraphTop) * ((100f - barValue.value.absoluteValue) / 100f)
+                upperGraphTop + (upperGraphBottom - upperGraphTop - rectTextMeasurements.height() / 2 - valueTextPadding) * ((100f - barValue.value.absoluteValue) / 100f)
             } else {
                 // Draw in Lower Region
                 lowerGraphTop
@@ -221,6 +240,23 @@ class TwoPartScalableBarChart : View {
             }
 
             canvas?.drawRect(columnLeft, top, columnRight, bottom, mBarPaint)
+
+            if (valueDrawPosition == ValueDrawPosition.TOP) {
+                canvas?.drawText(
+                    valueString,
+                    (columnLeft + rectTextMeasurements.left),
+                    if (barValue.value < 0) bottom + rectTextMeasurements.height() / 2 + valueTextPadding else ((top - valueTextPadding)),
+                    mBarValuesTextPaint
+                )
+            } else if (valueDrawPosition == ValueDrawPosition.INSIDE) {
+                canvas?.drawText(
+                    valueString,
+                    (columnLeft + rectTextMeasurements.left),
+                    bottom - ((bottom - top) / 2),
+                    mBarValuesTextPaint
+                )
+            }
+
 
             // Drawing Bar Lines
             if (drawBarLines) {
