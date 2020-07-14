@@ -29,8 +29,8 @@ class TwoPartScalableBarChart : View {
 
     // Dummy data
     var dataSet = listOf(
-        ChartUiModel(20f, 20f),
-        ChartUiModel(-30f, -10f),
+        ChartUiModel(100f, 20f),
+        ChartUiModel(-100f, -10f),
         ChartUiModel(10f, 0f),
         ChartUiModel(50f, 20f)
     )
@@ -146,7 +146,7 @@ class TwoPartScalableBarChart : View {
 
         val upperGraphTop = paddingTop.toFloat()
         val upperGraphBottom =
-            ((height - paddingBottom.toFloat() - paddingTop.toFloat()) / 2) - if (drawZeroLine) zeroLineHeightDp / 2 else 0f
+            ((height - paddingBottom.toFloat() - upperGraphTop) / 2) - if (drawZeroLine) zeroLineHeightDp / 2 else 0f
 
         val lowerGraphTop = upperGraphBottom + if (drawZeroLine) zeroLineHeightDp / 2 else 0f
         val lowerGraphBottom = height - upperGraphTop
@@ -227,7 +227,7 @@ class TwoPartScalableBarChart : View {
             // Calculate top of column based on barValue.
             val top = if (barValue.value > 0) {
                 // Draw in Upper Region
-                upperGraphTop + (upperGraphBottom - upperGraphTop - rectTextMeasurements.height() / 2 - valueTextPadding) * ((100f - barValue.value.absoluteValue) / 100f)
+                upperGraphTop + rectTextMeasurements.height() + valueTextPadding + (upperGraphBottom - upperGraphTop - rectTextMeasurements.height() - valueTextPadding) * ((100f - barValue.value.absoluteValue) / 100f)
             } else {
                 // Draw in Lower Region
                 lowerGraphTop
@@ -236,7 +236,7 @@ class TwoPartScalableBarChart : View {
             val bottom = if (barValue.value > 0) {
                 upperGraphBottom
             } else {
-                lowerGraphBottom - (lowerGraphBottom - lowerGraphTop) * ((100f - barValue.value.absoluteValue) / 100f)
+                lowerGraphBottom - rectTextMeasurements.height() - valueTextPadding - (lowerGraphBottom - lowerGraphTop - rectTextMeasurements.height() - valueTextPadding) * ((100f - barValue.value.absoluteValue) / 100f)
             }
 
             canvas?.drawRect(columnLeft, top, columnRight, bottom, mBarPaint)
