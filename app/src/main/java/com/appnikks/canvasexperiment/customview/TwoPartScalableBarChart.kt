@@ -17,7 +17,8 @@ import com.appnikks.canvasexperiment.R
 import kotlin.math.absoluteValue
 
 // TODO LET THE BAR BE CALCULATED BY ITSELF BASED ON DATA POINTS
-class TwoPartScalableBarChart : View {
+@Suppress("MemberVisibilityCanBePrivate")
+class TwoPartScalableBarChart<T> : View {
 
     companion object {
         private const val DEFAULT_SPACING = 20f
@@ -28,14 +29,26 @@ class TwoPartScalableBarChart : View {
         private const val DEFAULT_XAXIS_LABELS_PERCENT = 0.04
     }
 
-    var dataSetColors = listOf(ContextCompat.getColor(context, R.color.colorAccent))
+    var dataSetColors = listOf(ContextCompat.getColor(context, R.color.colorPrimary))
 
     // Dummy data
-    var dataSet = listOf(
-        ChartUiModel(100f, 20f),
-        ChartUiModel(-100f, -10f),
-        ChartUiModel(10f, 0f),
-        ChartUiModel(50f, 20f)
+    var data = listOf(
+        ChartDataSet(
+            listOf(
+                ChartUiModel(20f, 10f),
+                ChartUiModel(-100f, -10f),
+                ChartUiModel(30f, 15f),
+                ChartUiModel(-20f, -20f)
+            )
+        ),
+        ChartDataSet(
+            listOf(
+                ChartUiModel(20f, 0f),
+                ChartUiModel(20f, 0f),
+                ChartUiModel(-10f, 0f),
+                ChartUiModel(-20f, 0f)
+            )
+        )
     )
         set(value) {
             field = value
@@ -123,10 +136,14 @@ class TwoPartScalableBarChart : View {
         }
 
     // Paints
-    val mBarPaint = Paint().apply {
+    private val mBarPaint = Paint().apply {
         style = Paint.Style.FILL
-        // Default Color
         color = ContextCompat.getColor(context, R.color.colorPrimary)
+    }
+
+    private val mBar2Paint = Paint().apply {
+        style = Paint.Style.FILL
+        color = ContextCompat.getColor(context, R.color.colorAccent)
     }
 
     private val mZeroLinePaint = Paint().apply {
@@ -189,6 +206,7 @@ class TwoPartScalableBarChart : View {
         defStyleAttr
     )
 
+    @Suppress("unused")
     constructor(
         context: Context?,
         attrs: AttributeSet?,
@@ -207,6 +225,8 @@ class TwoPartScalableBarChart : View {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+
+        if (data.isEmpty()) return
 
         // Pos For View
         val viewLeft = 0f
@@ -285,12 +305,12 @@ class TwoPartScalableBarChart : View {
 
         // Bars
         /**
-         * Spacing Will Always Be Count + 1
+         * Spacing Will Always Be Count - 1
          * |_|_|
          * Here _ represent Spacing
          * Count = 2
          */
-        val totalColumnSpacing = barSpacing * (dataSet.size - 1).toFloat()
+        val totalColumnSpacing = barSpacing * data.first().valuePoints.size.minus(1).toFloat()
 
         /**
          * GridRight-GridLeft is the total width.
@@ -298,7 +318,8 @@ class TwoPartScalableBarChart : View {
          * / Data Count
          * Gives Width For Each Bar
          */
-        val columnWidth = (graphRight - graphLeft - totalColumnSpacing) / dataSet.size
+        val columnWidth =
+            (graphRight - graphLeft - totalColumnSpacing) / data.first().valuePoints.size
 
         /**
          * These are initial Points For First Bar
@@ -344,10 +365,10 @@ class TwoPartScalableBarChart : View {
         mBarPaint.color = dataSetColors[0]
 
         // Drawing Bars
-        dataSet.forEachIndexed { index, barValue ->
+        data.first().valuePoints.forEachIndexed { index, data1 ->
             rectTextMeasurements.setEmpty()
-            val valueString = valueFormatter.getValue(barValue, index)
-            if (valueDrawPosition == ValueDrawPosition.TOP) {
+            val valueString = valueFormatter.getValue(data1, index)
+            if (valueDrawPosition != ValueDrawPosition.NONE) {
                 mBarValuesTextPaint.getTextBounds(
                     valueString,
                     0,
@@ -356,46 +377,97 @@ class TwoPartScalableBarChart : View {
                 )
             }
 
+
             // Calculate top of column based on barValue.
-            val top = if (barValue.value > 0) {
+            val top = if (data1.value > 0) {
                 // Draw in Upper Region
-                upperGraphTop + rectTextMeasurements.height() + valueTextPadding + (upperGraphBottom - upperGraphTop - rectTextMeasurements.height() - valueTextPadding) * ((100f - barValue.value.absoluteValue) / 100f)
+                if (valueDrawPosition == ValueDrawPosition.TOP) {
+                    upperGraphTop + rectTextMeasurements.height() + valueTextPadding + (upperGraphBottom - upperGraphTop - rectTextMeasurements.height() - valueTextPadding) * ((100f - data1.value.absoluteValue) / 100f)
+                } else {
+                    upperGraphTop + (upperGraphBottom - upperGraphTop) * ((100f - data1.value.absoluteValue) / 100f)
+                }
             } else {
                 // Draw in Lower Region
                 lowerGraphTop
             }
 
-            val bottom = if (barValue.value > 0) {
+            val bottom = if (data1.value > 0) {
                 upperGraphBottom
             } else {
-                lowerGraphBottom - rectTextMeasurements.height() - valueTextPadding - (lowerGraphBottom - lowerGraphTop - rectTextMeasurements.height() - valueTextPadding) * ((100f - barValue.value.absoluteValue) / 100f)
+                if (valueDrawPosition == ValueDrawPosition.TOP) {
+                    lowerGraphBottom - rectTextMeasurements.height() - valueTextPadding - (lowerGraphBottom - lowerGraphTop - rectTextMeasurements.height() - valueTextPadding) * ((100f - data1.value.absoluteValue) / 100f)
+                } else {
+                    lowerGraphBottom - (lowerGraphBottom - lowerGraphTop) * ((100f - data1.value.absoluteValue) / 100f)
+                }
             }
 
             canvas.drawRect(columnLeft, top, columnRight, bottom, mBarPaint)
+
+
+            /**
+             * Drawing Stacked Part
+             */
+
+            val data2 = data[1].valuePoints[index]
+
+            val upperGraphHeight = if (valueDrawPosition == ValueDrawPosition.TOP) {
+                upperGraphBottom - upperGraphTop - rectTextMeasurements.height() - valueTextPadding
+            } else {
+                upperGraphBottom - upperGraphTop
+            }
+
+            val lowerGraphHeight = if (valueDrawPosition == ValueDrawPosition.TOP) {
+                lowerGraphBottom - lowerGraphTop - rectTextMeasurements.height() - valueTextPadding
+            } else {
+                lowerGraphBottom - lowerGraphTop
+            }
+
+            var top2 = if (data2.value > 0) {
+                // Draw in Upper Region
+                upperGraphHeight - (upperGraphHeight - top) - (upperGraphHeight * data2.value.absoluteValue / 100f)
+            } else {
+                // Draw in Lower Region
+                bottom
+            }
+
+            var bottom2 = if (data2.value > 0) {
+                top
+            } else {
+                lowerGraphBottom - (lowerGraphBottom - bottom) + (lowerGraphHeight * data2.value.absoluteValue / 100f)
+            }
+
+            if (top2 == upperGraphBottom) {
+                top2 += zeroLineHeightDp
+            }
+            if (bottom2 == lowerGraphTop) {
+                bottom2 -= zeroLineHeightDp
+            }
+
+            canvas.drawRect(columnLeft, top2, columnRight, bottom2, mBar2Paint)
+
 
             if (valueDrawPosition == ValueDrawPosition.TOP) {
                 canvas.drawText(
                     valueString,
                     columnLeft + (columnRight - columnLeft) / 2,
-                    if (barValue.value < 0) bottom + rectTextMeasurements.height() / 2 + valueTextPadding else ((top - valueTextPadding)),
+                    if (data1.value < 0) bottom + rectTextMeasurements.height() / 2 + valueTextPadding else ((top - valueTextPadding)),
                     mBarValuesTextPaint
                 )
             } else if (valueDrawPosition == ValueDrawPosition.INSIDE) {
                 canvas.drawText(
                     valueString,
                     columnLeft + (columnRight - columnLeft) / 2,
-                    bottom - ((bottom - top) / 2),
+                    bottom - (bottom - top).div(2) + rectTextMeasurements.height() / 4,
                     mBarValuesTextPaint
                 )
             }
 
-
             // Drawing Bar Lines
             if (drawBarLines) {
-                val barYPos = if (barValue.barLineValue >= 0) {
-                    upperGraphTop + (upperGraphBottom - upperGraphTop) * ((100f - barValue.barLineValue.absoluteValue) / 100f)
+                val barYPos = if (data1.barLineValue >= 0) {
+                    upperGraphTop + (upperGraphBottom - upperGraphTop) * ((100f - data1.barLineValue.absoluteValue) / 100f)
                 } else {
-                    lowerGraphBottom - (lowerGraphBottom - lowerGraphTop) * ((100f - barValue.barLineValue.absoluteValue) / 100f)
+                    lowerGraphBottom - (lowerGraphBottom - lowerGraphTop) * ((100f - data1.barLineValue.absoluteValue) / 100f)
                 }
                 val barXStartPos = when (barLineType) {
                     BarLineType.NORMAL -> columnLeft
@@ -411,7 +483,7 @@ class TwoPartScalableBarChart : View {
             }
 
             if (drawXAxisLabels) {
-                val labelToDraw = xAxisFormatter.getValue(barValue, index)
+                val labelToDraw = xAxisFormatter.getValue(data1, index)
                 canvas.drawText(
                     labelToDraw,
                     columnLeft + (columnRight - columnLeft) / 2,
@@ -421,7 +493,7 @@ class TwoPartScalableBarChart : View {
             }
 
             // Shift over left/right column bounds
-            columnLeft = columnRight + totalColumnSpacing / (dataSet.size - 1)
+            columnLeft = columnRight + totalColumnSpacing / (data.first().valuePoints.size - 1)
             columnRight = columnLeft + columnWidth
         }
 
@@ -509,6 +581,8 @@ class TwoPartScalableBarChart : View {
         val left: Float = 0f,
         val right: Float = 0f
     )
+
+    data class ChartDataSet(val valuePoints: List<ChartUiModel>)
 
     interface ValueFormatter {
         fun getValue(model: ChartUiModel, position: Int): String
