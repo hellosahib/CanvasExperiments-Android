@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import com.appnikks.canvasexperiment.R
 import kotlin.math.absoluteValue
 
+// TODO LET THE BAR BE CALCULATED BY ITSELF BASED ON DATA POINTS
 class TwoPartScalableBarChart : View {
 
     companion object {
@@ -23,6 +24,8 @@ class TwoPartScalableBarChart : View {
 
         @Dimension(unit = Dimension.SP)
         private const val DEFAULT_TEXT_SIZE = 12f
+
+        private const val DEFAULT_XAXIS_LABELS_PERCENT = 0.04
     }
 
     var dataSetColors = listOf(ContextCompat.getColor(context, R.color.colorAccent))
@@ -55,13 +58,10 @@ class TwoPartScalableBarChart : View {
             mBarLinesPaint.color = field
         }
 
-    // TODO CHANGE TO 0DP
     var barLineExtendedWidth = context.dpToPx(2f)
 
-    // TODO CHANGE TO NORMAL
-    var barLineType: BarLineType = BarLineType.Contracted
+    var barLineType: BarLineType = BarLineType.NORMAL
 
-    // TODO DEFAULT FALSE
     var drawZeroLine = true
     var zeroLineHeightDp = context.dpToPx(2f)
         set(value) {
@@ -87,7 +87,37 @@ class TwoPartScalableBarChart : View {
     // X Axis Labels
     var drawXAxisLabels = true
     var xAxisFormatter = XAxisLabelBaseFormatter()
-    var marginXAxisLabels = context.dpToPx(8f)
+
+    var isDescriptionEnabled = true
+    var upperGraphDescription = "Buy"
+    var lowerGraphDescription = "Sell"
+    var labelsDescription = "Since"
+    private val descriptionLabelsRect = Rect()
+
+    /**
+     * The Graph Start Would be calculated
+     * TotalWidth Taken By Text
+     * Including Margin Left and Right(max)
+     */
+    var marginUpperGraphDescription = MarginDp(bottom = context.dpToPx(8f))
+        set(value) {
+            field = value
+            invalidate()
+        }
+    var marginLowerGraphDescription = MarginDp(top = context.dpToPx(8f))
+        set(value) {
+            field = value
+            invalidate()
+        }
+    var marginXAxisLabelsDescription = MarginDp()
+        set(value) {
+            field = value
+            invalidate()
+        }
+
+
+    @Dimension(unit = Dimension.DP)
+    var marginXAxisLabelsDp = -1f
         set(value) {
             field = context.dpToPx(value)
         }
@@ -127,6 +157,30 @@ class TwoPartScalableBarChart : View {
         textSize = context.spToPx(DEFAULT_TEXT_SIZE)
     }
 
+    private val mUpperGraphDescriptionTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        typeface = Typeface.SANS_SERIF
+        textAlign = Paint.Align.LEFT
+        color = ContextCompat.getColor(context, android.R.color.black)
+        textSize = context.spToPx(DEFAULT_TEXT_SIZE)
+    }
+
+    private val mLowerGraphDescriptionTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        typeface = Typeface.SANS_SERIF
+        textAlign = Paint.Align.LEFT
+        color = ContextCompat.getColor(context, android.R.color.black)
+        textSize = context.spToPx(DEFAULT_TEXT_SIZE)
+    }
+
+    private val mXAxisLabelDescriptionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        typeface = Typeface.SANS_SERIF
+        textAlign = Paint.Align.LEFT
+        color = ContextCompat.getColor(context, android.R.color.black)
+        textSize = context.spToPx(DEFAULT_TEXT_SIZE)
+    }
+
     constructor(context: Context?) : super(context)
     constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs)
     constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(
@@ -142,31 +196,92 @@ class TwoPartScalableBarChart : View {
         defStyleRes: Int
     ) : super(context, attrs, defStyleAttr, defStyleRes)
 
-    override fun onDraw(canvas: Canvas?) {
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        val viewHeight = MeasureSpec.getSize(heightMeasureSpec)
+        // Not Initialized
+        if (marginXAxisLabelsDp == -1f) {
+            marginXAxisLabelsDp = (DEFAULT_XAXIS_LABELS_PERCENT * viewHeight).toFloat()
+        }
+    }
+
+    override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        val gridLeft = if (drawBarLines && barLineType == BarLineType.Extended) {
-            paddingLeft.toFloat() + barLineExtendedWidth
-        } else {
-            paddingLeft.toFloat()
+        // Pos For View
+        val viewLeft = 0f
+        val viewBottom = height.toFloat()
+        val viewTop = 0
+        val viewRight = width.toFloat()
+
+        var lowerDescriptionHeight = 0f
+
+        // Pos For Graph Drawing
+        val graphLeft = viewLeft.let {
+            var totalLeft = it
+            if (drawBarLines && barLineType == BarLineType.Extended) {
+                totalLeft += barLineExtendedWidth
+            }
+            if (isDescriptionEnabled) {
+                mUpperGraphDescriptionTextPaint.getTextBounds(
+                    upperGraphDescription,
+                    0,
+                    upperGraphDescription.length,
+                    descriptionLabelsRect
+                )
+                val upperDescriptionWidth =
+                    descriptionLabelsRect.width() + marginUpperGraphDescription.left + marginUpperGraphDescription.right
+
+
+                // Lower Description
+                mLowerGraphDescriptionTextPaint.getTextBounds(
+                    lowerGraphDescription,
+                    0,
+                    lowerGraphDescription.length,
+                    descriptionLabelsRect
+                )
+                lowerDescriptionHeight = descriptionLabelsRect.height().toFloat()
+                val lowerDescriptionWidth =
+                    descriptionLabelsRect.width() + marginLowerGraphDescription.left + marginLowerGraphDescription.right
+
+                // XAxisLabels Description
+                mXAxisLabelDescriptionPaint.getTextBounds(
+                    labelsDescription,
+                    0,
+                    labelsDescription.length,
+                    descriptionLabelsRect
+                )
+                val labelsDescriptionWidth =
+                    descriptionLabelsRect.width() + marginXAxisLabelsDescription.left + marginXAxisLabelsDescription.right
+                totalLeft += maxOf(
+                    upperDescriptionWidth,
+                    lowerDescriptionWidth,
+                    labelsDescriptionWidth
+                )
+            }
+            totalLeft
         }
 
-        val gridRight = if (drawBarLines && barLineType == BarLineType.Extended) {
-            width - paddingRight.toFloat() - barLineExtendedWidth
+        val graphRight = if (drawBarLines && barLineType == BarLineType.Extended) {
+            viewRight - barLineExtendedWidth
         } else {
-            width - paddingRight.toFloat()
+            viewRight
         }
-        val viewBottom = height - paddingBottom.toFloat()
 
-        // TODO REVISIT THIS LOGIC
-        val gridBottom = height - paddingBottom.toFloat() - marginXAxisLabels
+        val graphBottom = height - marginXAxisLabelsDp
 
-        val upperGraphTop = paddingTop.toFloat()
+        // Pos For Upper And Lower Graph
+        /**
+         * We are leaving space for Zero Line
+         * Which will be adjusted from bottom Upper and Lower graph (50-50)
+         * Since UpperGraphBottom is already having Required Height - ZeroLineHeight
+         * We have to Add Double To LowerGraphTop (UpperGraphBottom+zeroLineHeight)
+         */
+        val upperGraphTop = viewTop
         val upperGraphBottom =
-            ((gridBottom - upperGraphTop) / 2) - if (drawZeroLine) zeroLineHeightDp / 2 else 0f
-
-        val lowerGraphTop = upperGraphBottom + if (drawZeroLine) zeroLineHeightDp / 2 else 0f
-        val lowerGraphBottom = gridBottom - upperGraphTop
+            ((graphBottom - upperGraphTop) / 2) - if (drawZeroLine) zeroLineHeightDp / 2 else 0f
+        val lowerGraphTop = upperGraphBottom + if (drawZeroLine) zeroLineHeightDp else 0f
+        val lowerGraphBottom = graphBottom
 
         // Bars
         /**
@@ -183,41 +298,41 @@ class TwoPartScalableBarChart : View {
          * / Data Count
          * Gives Width For Each Bar
          */
-        val columnWidth = (gridRight - gridLeft - totalColumnSpacing) / dataSet.size
+        val columnWidth = (graphRight - graphLeft - totalColumnSpacing) / dataSet.size
 
         /**
          * These are initial Points For First Bar
          */
-        var columnLeft = gridLeft
+        var columnLeft = graphLeft
         var columnRight = columnLeft + columnWidth
 
 
         // Drawing Upper Graph Background Drawable
         topGraphBackgroundDrawable?.setBounds(
-            gridLeft.toInt(),
-            upperGraphTop.toInt(),
-            gridRight.toInt(),
+            viewLeft.toInt(),
+            upperGraphTop,
+            viewRight.toInt(),
             upperGraphBottom.toInt()
         )
-        topGraphBackgroundDrawable?.draw(canvas!!)
+        topGraphBackgroundDrawable?.draw(canvas)
 
         // Drawing Lower Graph Background Drawable
         bottomGraphBackgroundDrawable?.setBounds(
-            gridLeft.toInt(),
+            viewLeft.toInt(),
             lowerGraphTop.toInt(),
-            gridRight.toInt(),
+            viewRight.toInt(),
             lowerGraphBottom.toInt()
         )
-        bottomGraphBackgroundDrawable?.draw(canvas!!)
+        bottomGraphBackgroundDrawable?.draw(canvas)
 
 
         // Drawing Zero Line
         if (drawZeroLine) {
-            canvas?.drawLine(
-                gridLeft,
-                upperGraphBottom,
-                gridRight,
-                upperGraphBottom,
+            canvas.drawLine(
+                viewLeft,
+                upperGraphBottom + zeroLineHeightDp / 2,
+                viewRight,
+                upperGraphBottom + zeroLineHeightDp / 2,
                 mZeroLinePaint
             )
         }
@@ -256,17 +371,17 @@ class TwoPartScalableBarChart : View {
                 lowerGraphBottom - rectTextMeasurements.height() - valueTextPadding - (lowerGraphBottom - lowerGraphTop - rectTextMeasurements.height() - valueTextPadding) * ((100f - barValue.value.absoluteValue) / 100f)
             }
 
-            canvas?.drawRect(columnLeft, top, columnRight, bottom, mBarPaint)
+            canvas.drawRect(columnLeft, top, columnRight, bottom, mBarPaint)
 
             if (valueDrawPosition == ValueDrawPosition.TOP) {
-                canvas?.drawText(
+                canvas.drawText(
                     valueString,
                     columnLeft + (columnRight - columnLeft) / 2,
                     if (barValue.value < 0) bottom + rectTextMeasurements.height() / 2 + valueTextPadding else ((top - valueTextPadding)),
                     mBarValuesTextPaint
                 )
             } else if (valueDrawPosition == ValueDrawPosition.INSIDE) {
-                canvas?.drawText(
+                canvas.drawText(
                     valueString,
                     columnLeft + (columnRight - columnLeft) / 2,
                     bottom - ((bottom - top) / 2),
@@ -292,12 +407,12 @@ class TwoPartScalableBarChart : View {
                     BarLineType.Contracted -> columnRight - barLineExtendedWidth
                     BarLineType.Extended -> columnRight + barLineExtendedWidth
                 }
-                canvas?.drawLine(barXStartPos, barYPos, barXEndPos, barYPos, mBarLinesPaint)
+                canvas.drawLine(barXStartPos, barYPos, barXEndPos, barYPos, mBarLinesPaint)
             }
 
             if (drawXAxisLabels) {
                 val labelToDraw = xAxisFormatter.getValue(barValue, index)
-                canvas?.drawText(
+                canvas.drawText(
                     labelToDraw,
                     columnLeft + (columnRight - columnLeft) / 2,
                     viewBottom,
@@ -308,6 +423,30 @@ class TwoPartScalableBarChart : View {
             // Shift over left/right column bounds
             columnLeft = columnRight + totalColumnSpacing / (dataSet.size - 1)
             columnRight = columnLeft + columnWidth
+        }
+
+        // Description  Text
+        if (isDescriptionEnabled) {
+            canvas.drawText(
+                upperGraphDescription,
+                marginUpperGraphDescription.left,
+                upperGraphBottom - marginUpperGraphDescription.bottom,
+                mUpperGraphDescriptionTextPaint
+            )
+
+            canvas.drawText(
+                lowerGraphDescription,
+                marginLowerGraphDescription.left,
+                lowerGraphTop + lowerDescriptionHeight / 2 + marginLowerGraphDescription.top,
+                mLowerGraphDescriptionTextPaint
+            )
+
+            canvas.drawText(
+                labelsDescription,
+                viewLeft,
+                viewBottom,
+                mXAxisLabelDescriptionPaint
+            )
         }
     }
 
@@ -363,6 +502,13 @@ class TwoPartScalableBarChart : View {
             return position.toString()
         }
     }
+
+    data class MarginDp(
+        val top: Float = 0f,
+        val bottom: Float = 0f,
+        val left: Float = 0f,
+        val right: Float = 0f
+    )
 
     interface ValueFormatter {
         fun getValue(model: ChartUiModel, position: Int): String
